@@ -153,7 +153,7 @@ export async function enviarInvitacionesTallerMasivoAction(
   _prevState: EnvioMasivoTallerState,
   _formData: FormData
 ): Promise<EnvioMasivoTallerState> {
-  await requerirGestionPerfil(empresaId);
+  const { empresa } = await requerirGestionPerfil(empresaId);
 
   const encabezados = await headers();
   const host = encabezados.get("host");
@@ -197,6 +197,7 @@ export async function enviarInvitacionesTallerMasivoAction(
       paraEmail: trabajador.email,
       trabajadorNombre: trabajador.nombres,
       cargoNombre: trabajador.cargo.nombre,
+      empresaNombre: empresa.nombre,
       url: `${origen}/t/${token}`,
     });
 
