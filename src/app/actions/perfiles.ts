@@ -267,7 +267,23 @@ export async function generarBorradorPerfilAction(cargoId: string): Promise<Borr
 
   let borradorIA;
   try {
-    borradorIA = await generarBorradorPerfilConIA(cargo.nombre, respuestasTaller);
+    const resultado = await generarBorradorPerfilConIA(cargo.nombre, respuestasTaller);
+    borradorIA = resultado.borrador;
+    // Se registra el gasto real de la llamada a la IA para el informe de
+    // costos del consultor (/empresas/[id]/trabajadores) — no bloquea la
+    // generación del borrador si por algo fallara este insert.
+    await prisma.generacionIaPerfil
+      .create({
+        data: {
+          empresaId: cargo.empresaId,
+          cargoId,
+          modelo: resultado.uso.modelo,
+          tokensEntrada: resultado.uso.tokensEntrada,
+          tokensSalida: resultado.uso.tokensSalida,
+          costoUsd: resultado.uso.costoUsd,
+        },
+      })
+      .catch(() => {});
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo generar el borrador con IA." };
   }

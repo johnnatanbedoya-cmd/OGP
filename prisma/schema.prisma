@@ -95,6 +95,7 @@ model Empresa {
   funcionesComunes            FuncionComunEmpresa[]
   competenciasComunes         CompetenciaComunEmpresa[]
   responsabilidadesSstComunes ResponsabilidadSstComunEmpresa[]
+  generacionesIa              GeneracionIaPerfil[]
 
   @@unique([cuentaId, nombre])
   @@index([cuentaId])
@@ -194,7 +195,8 @@ model Cargo {
   perfil                Perfil?
   trabajadores          Trabajador[]
   respuestasTaller      RespuestaTaller[]
-  flujosComoContraparte FlujoPerfil[]     @relation("ContraparteFlujo")
+  flujosComoContraparte FlujoPerfil[]        @relation("ContraparteFlujo")
+  generacionesIa        GeneracionIaPerfil[]
 
   // Ya NO es único por [departamentoId, nombre] a propósito: dos cargos con
   // el mismo nombre y nivel en la misma área pueden tener funciones propias
@@ -537,4 +539,28 @@ model InvitacionTaller {
   @@index([empresaId])
   @@index([trabajadorId])
   @@map("invitaciones_taller")
+}
+
+// Costo real (en USD) de cada llamada a la IA para generar un borrador de
+// Perfil — para que el consultor sepa cuánto le cuesta la IA, se guarda un
+// registro por cada "Generar borrador con IA" exitoso (ver
+// generarBorradorPerfilAction). No es el costo laboral/salarial del cargo,
+// es el gasto de la API de Anthropic. Se muestra como informe en
+// /empresas/[id]/trabajadores, solo al consultor.
+model GeneracionIaPerfil {
+  id            String   @id @default(cuid())
+  empresaId     String
+  cargoId       String
+  modelo        String
+  tokensEntrada Int
+  tokensSalida  Int
+  costoUsd      Float
+  createdAt     DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  cargo   Cargo   @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
+  @@index([cargoId])
+  @@map("generaciones_ia_perfil")
 }

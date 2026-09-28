@@ -20,6 +20,14 @@ import {
 
 const MODELO = "claude-sonnet-5";
 
+// Precios de claude-sonnet-5 por millón de tokens (USD) — si el MODELO de
+// arriba cambia alguna vez, hay que actualizar esto también. Fuente: tabla de
+// precios de la API de Anthropic vigente al 2026-09-28.
+const PRECIO_ENTRADA_POR_MILLON_USD = 2.0;
+const PRECIO_SALIDA_POR_MILLON_USD = 10.0;
+
+export type UsoIA = { tokensEntrada: number; tokensSalida: number; costoUsd: number; modelo: string };
+
 // Verbos de acción por nivel cognitivo — Taxonomía de Bloom (adaptación en
 // español, la misma que usan los consultores de RR.HH. para redactar
 // funciones de cargo con verbos precisos en vez de descripciones vagas).
@@ -406,7 +414,7 @@ function construirContexto(respuestasPorBloque: Record<string, Record<string, st
 export async function generarBorradorPerfilConIA(
   cargoNombre: string,
   respuestasPorBloque: Record<string, Record<string, string>>
-): Promise<BorradorPerfilIA> {
+): Promise<{ borrador: BorradorPerfilIA; uso: UsoIA }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error("Falta configurar ANTHROPIC_API_KEY en el servidor para poder generar borradores con IA.");
@@ -454,5 +462,11 @@ export async function generarBorradorPerfilConIA(
   if (!parsed.success) {
     throw new Error("El borrador generado no tiene el formato esperado — intenta de nuevo.");
   }
-  return parsed.data;
+
+  const tokensEntrada = respuesta.usage.input_tokens;
+  const tokensSalida = respuesta.usage.output_tokens;
+  const costoUsd =
+    (tokensEntrada / 1_000_000) * PRECIO_ENTRADA_POR_MILLON_USD + (tokensSalida / 1_000_000) * PRECIO_SALIDA_POR_MILLON_USD;
+
+  return { borrador: parsed.data, uso: { tokensEntrada, tokensSalida, costoUsd, modelo: MODELO } };
 }
