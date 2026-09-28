@@ -72,7 +72,7 @@ export async function signSession(payload: SessionPayload): Promise<string> {
  * los tres lugares.
  */
 export function rutaInicioPara(session: Pick<SessionPayload, "rol" | "empresaId">): string {
-  if (session.rol === "empresa" && session.empresaId) return `/empresas/${session.empresaId}`;
+  if (session.rol === "empresa" && session.empresaId) return `/empresas/${session.empresaId}/dashboard`;
   return "/empresas";
 }
 

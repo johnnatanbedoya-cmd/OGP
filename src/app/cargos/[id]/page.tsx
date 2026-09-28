@@ -83,9 +83,11 @@ export default async function CargoPage({ params }: { params: Promise<{ id: stri
                 <a href={`/cargos/${cargo.id}/pdf`} className="link-quiet">
                   PDF
                 </a>
-                <a href={`/cargos/${cargo.id}/word`} className="link-quiet">
-                  Word
-                </a>
+                {puedeEditarPerfiles && (
+                  <a href={`/cargos/${cargo.id}/word`} className="link-quiet">
+                    Word
+                  </a>
+                )}
                 <Link href={`/cargos/${cargo.id}/versiones`} className="link-quiet">
                   Historial
                 </Link>

@@ -48,6 +48,9 @@ export default async function EmpresaPage({ params }: { params: Promise<{ id: st
         <h1 className="mb-4 font-heading text-[24px] font-bold text-gray-900">{empresa.nombre}</h1>
 
         <div className="mb-8 flex flex-wrap gap-3">
+          <Link href={`/empresas/${id}/dashboard`} className="btn-secondary">
+            Dashboard
+          </Link>
           <Link href={`/empresas/${id}/organigrama`} className="btn-secondary">
             Ver organigrama
           </Link>

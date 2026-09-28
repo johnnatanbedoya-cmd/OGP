@@ -7,9 +7,14 @@ import { PerfilPdf } from "@/lib/pdf/perfil-pdf";
 import { generarPerfilDocx } from "@/lib/reportes/perfil-docx";
 import { slug } from "@/lib/slug";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: empresaId } = await params;
   const { empresa } = await requerirAccesoEmpresa(empresaId);
+
+  // La vista de solo-consulta de la empresa (dashboard) solo ofrece PDF —
+  // ver src/app/empresas/[id]/dashboard/page.tsx — el consultor sigue
+  // teniendo PDF+Word por defecto.
+  const soloPdf = new URL(request.url).searchParams.get("formato") === "pdf";
 
   const cargos = await obtenerCargosPublicadosParaExportar(empresaId);
   if (cargos.length === 0) {
@@ -34,6 +39,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     cargos.map(async (cargo) => {
       const versiones = await obtenerVersiones(cargo.perfil!.id, empresaId);
       const nombreArchivo = nombreArchivoUnico(cargo);
+      if (soloPdf) {
+        const pdfBuffer = await renderToBuffer(<PerfilPdf {...cargo} versiones={versiones} />);
+        zip.file(`${nombreArchivo}.pdf`, pdfBuffer);
+        return;
+      }
       const [pdfBuffer, docxBuffer] = await Promise.all([
         renderToBuffer(<PerfilPdf {...cargo} versiones={versiones} />),
         generarPerfilDocx(cargo, versiones),
