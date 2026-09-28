@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { NIVELES_JERARQUICOS } from "@/lib/validaciones";
 import { ETIQUETAS_NIVEL_JERARQUICO } from "@/lib/etiquetas";
-import { NOMBRE_CARGO_JUNTA_DIRECTIVA } from "@/lib/estructura-inicial";
+import { NOMBRE_CARGO_JUNTA_DIRECTIVA, sembrarFuncionesCoordinadorSstSiAplica } from "@/lib/estructura-inicial";
 
 const FILA_EJEMPLO = [
   "1020304050",
@@ -343,6 +343,7 @@ export async function importarTrabajadoresDesdeXlsx(
           });
           cargoId = cargoNuevo.id;
           cargosCreados++;
+          await sembrarFuncionesCoordinadorSstSiAplica(prisma, cargoNuevo.id, cargoNuevo.nombre);
         }
         cacheCargos.set(claveCargo, cargoId);
       }

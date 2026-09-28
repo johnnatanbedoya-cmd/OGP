@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirGestionEstructura } from "@/lib/auth";
 import { cargoSchema } from "@/lib/validaciones";
+import { sembrarFuncionesCoordinadorSstSiAplica } from "@/lib/estructura-inicial";
 
 export type CargoState = { error?: string };
 
@@ -59,6 +60,7 @@ export async function crearCargoAction(
   // varios cargos con el mismo nombre y nivel pero funciones propias
   // distintas (ver prisma/schema.prisma, modelo Cargo).
   const cargo = await prisma.cargo.create({ data: { ...leido.data, empresaId } });
+  await sembrarFuncionesCoordinadorSstSiAplica(prisma, cargo.id, cargo.nombre);
   revalidatePath(`/departamentos/${leido.data.departamentoId}`);
   redirect(`/cargos/${cargo.id}`);
 }
