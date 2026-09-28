@@ -63,8 +63,11 @@ export default async function EmpresaPage({ params }: { params: Promise<{ id: st
             </Link>
           )}
           {perfilesPublicados > 0 && (
-            <a href={`/empresas/${id}/perfiles.zip`} className="btn-secondary">
-              Descargar todos los perfiles (.zip)
+            <a
+              href={`/empresas/${id}/perfiles.zip${session.rol === "empresa" ? "?formato=pdf" : ""}`}
+              className="btn-secondary"
+            >
+              {session.rol === "empresa" ? "Descargar todos los perfiles (PDF)" : "Descargar todos los perfiles (.zip)"}
             </a>
           )}
         </div>

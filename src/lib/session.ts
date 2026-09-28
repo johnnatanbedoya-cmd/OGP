@@ -76,6 +76,17 @@ export function rutaInicioPara(session: Pick<SessionPayload, "rol" | "empresaId"
   return "/empresas";
 }
 
+/**
+ * A dónde manda un "← Volver a {empresa}" dentro de una empresa puntual —
+ * el usuario de empresa siempre vuelve a su dashboard de solo lectura, nunca
+ * a la vista de gestión (departamentos/carga masiva/etc.), aunque haya
+ * llegado ahí navegando (organigrama, trabajadores, comunes...).
+ */
+export function rutaEmpresaHomePara(session: Pick<SessionPayload, "rol">, empresaId: string): string {
+  if (session.rol === "empresa") return `/empresas/${empresaId}/dashboard`;
+  return `/empresas/${empresaId}`;
+}
+
 export async function verifySession(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecretKey());

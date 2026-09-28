@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requerirAccesoEmpresa } from "@/lib/auth";
+import { rutaEmpresaHomePara } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { DepartamentoForm } from "@/components/departamento-form";
@@ -46,7 +47,7 @@ export default async function DepartamentoPage({ params }: { params: Promise<{ i
     <div className="flex min-h-screen flex-col">
       <AppHeader nombreUsuario={session.nombre} contexto={contexto} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-10">
-        <Link href={`/empresas/${empresa.id}`} className="link-quiet mb-4 inline-block">
+        <Link href={rutaEmpresaHomePara(session, empresa.id)} className="link-quiet mb-4 inline-block">
           ← Volver a {empresa.nombre}
         </Link>
 

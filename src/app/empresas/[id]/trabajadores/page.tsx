@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requerirAccesoEmpresa } from "@/lib/auth";
+import { rutaEmpresaHomePara } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { ImportarTrabajadoresForm } from "@/components/importar-trabajadores-form";
@@ -22,7 +23,7 @@ export default async function TrabajadoresPage({ params }: { params: Promise<{ i
     <div className="flex min-h-screen flex-col">
       <AppHeader nombreUsuario={session.nombre} contexto={contexto} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-10">
-        <Link href={`/empresas/${id}`} className="link-quiet mb-4 inline-block">
+        <Link href={rutaEmpresaHomePara(session, id)} className="link-quiet mb-4 inline-block">
           ← Volver a {empresa.nombre}
         </Link>
         <h1 className="mb-8 font-heading text-[24px] font-bold text-gray-900">Trabajadores</h1>

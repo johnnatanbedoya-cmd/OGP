@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requerirAccesoEmpresa } from "@/lib/auth";
+import { rutaEmpresaHomePara } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { FuncionComunForm } from "@/components/funcion-comun-form";
@@ -43,7 +44,7 @@ export default async function ComunesPage({ params }: { params: Promise<{ id: st
     <div className="flex min-h-screen flex-col">
       <AppHeader nombreUsuario={session.nombre} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
-        <Link href={`/empresas/${id}`} className="link-quiet mb-4 inline-block">
+        <Link href={rutaEmpresaHomePara(session, id)} className="link-quiet mb-4 inline-block">
           ← Volver a {empresa.nombre}
         </Link>
 

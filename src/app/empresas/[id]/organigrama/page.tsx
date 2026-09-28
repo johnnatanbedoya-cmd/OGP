@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requerirAccesoEmpresa } from "@/lib/auth";
+import { rutaEmpresaHomePara } from "@/lib/session";
 import { obtenerCargosParaOrganigrama, construirArbol } from "@/lib/organigrama-data";
 import { AppHeader } from "@/components/app-header";
 import { Organigrama } from "@/components/organigrama";
@@ -18,7 +19,7 @@ export default async function OrganigramaPage({ params }: { params: Promise<{ id
     <div className="flex min-h-screen flex-col">
       <AppHeader nombreUsuario={session.nombre} contexto={contexto} />
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
-        <Link href={`/empresas/${id}`} className="no-imprimir link-quiet mb-4 inline-block">
+        <Link href={rutaEmpresaHomePara(session, id)} className="no-imprimir link-quiet mb-4 inline-block">
           ← Volver a {empresa.nombre}
         </Link>
         <div className="mb-8 flex items-center justify-between gap-4">
