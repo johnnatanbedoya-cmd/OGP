@@ -3,9 +3,9 @@ import { requerirAccesoEmpresa } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { ImportarTrabajadoresForm } from "@/components/importar-trabajadores-form";
-import { EliminarTrabajadorButton } from "@/components/eliminar-trabajador-button";
+import { TrabajadorRow } from "@/components/trabajador-row";
 import { EnviarTallerMasivoButton } from "@/components/enviar-taller-masivo-button";
-import { ETIQUETAS_NIVEL_ACCESO, etiqueta } from "@/lib/etiquetas";
+import { ETIQUETAS_NIVEL_ACCESO } from "@/lib/etiquetas";
 
 export default async function TrabajadoresPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -52,23 +52,7 @@ export default async function TrabajadoresPage({ params }: { params: Promise<{ i
         ) : (
           <div className="card overflow-hidden">
             {trabajadores.map((t) => (
-              <div key={t.id} className="card-row">
-                <div>
-                  <p className="text-[14.5px] font-semibold text-gray-900">{t.nombres}</p>
-                  <p className="text-[13px] text-[var(--color-texto-suave)]">
-                    {t.documento} · {t.cargo.nombre} · {t.cargo.departamento.nombre}
-                  </p>
-                  <p className="text-[13px] text-[var(--color-texto-suave)]">
-                    {t.email ?? <span className="text-amber-700">Sin correo — no se le puede enviar el taller</span>}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`badge ${t.estado === "activo" ? "badge-emerald" : "badge-slate"}`}>
-                    {etiqueta({ activo: "Activo", inactivo: "Inactivo" }, t.estado)}
-                  </span>
-                  {puedeGestionarEstructura && <EliminarTrabajadorButton trabajadorId={t.id} />}
-                </div>
-              </div>
+              <TrabajadorRow key={t.id} trabajador={t} puedeEditar={puedeGestionarEstructura} />
             ))}
           </div>
         )}

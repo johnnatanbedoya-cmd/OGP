@@ -256,3 +256,10 @@ export const responsabilidadSstComunSchema = z.object({
   alcance: z.enum(ALCANCES_COMUN, { message: "Selecciona a quién aplica" }),
   descripcion: z.string().trim().min(1, "La responsabilidad no puede estar vacía"),
 });
+
+export const trabajadorSchema = z.object({
+  documento: z.string().trim().min(1, "El documento es obligatorio"),
+  nombres: z.string().trim().min(2, "El nombre es obligatorio"),
+  email: z.string().trim().email("Correo inválido"),
+  estado: z.enum(["activo", "inactivo"], { message: "Selecciona un estado" }),
+});
