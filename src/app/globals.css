@@ -350,4 +350,9 @@ h4 {
     transform: none !important;
     break-inside: avoid;
   }
+  /* El zoom del organigrama (en pantalla) no debe afectar lo impreso —
+     siempre se imprime a escala real, sin importar el % elegido. */
+  .org-zoom-inner {
+    transform: none !important;
+  }
 }

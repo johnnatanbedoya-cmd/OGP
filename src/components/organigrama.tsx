@@ -2,6 +2,7 @@ import type { NodoOrganigrama } from "@/lib/organigrama-data";
 import { idsDeSubarbol } from "@/lib/organigrama-data";
 import { ETIQUETAS_NIVEL_JERARQUICO, claseBadgeNivelJerarquico, etiqueta } from "@/lib/etiquetas";
 import { CambiarJefeSelect } from "@/components/cambiar-jefe-select";
+import { OrganigramaZoom } from "@/components/organigrama-zoom";
 
 function NodoCargo({
   nodo,
@@ -67,24 +68,26 @@ export function Organigrama({
   const listaCargos = recolectarNodos(raices);
 
   return (
-    <div className="card overflow-x-auto p-8">
+    <div className="card p-8">
       {puedeGestionarEstructura && (
         <p className="no-imprimir mb-4 text-[12.5px] text-[var(--color-texto-suave)]">
           Cambia el selector debajo de cualquier cargo para reasignar su jefe inmediato — se guarda al instante.
         </p>
       )}
-      <ul className="org-tree">
-        <li>
-          <div className="org-node org-node-root">
-            <p className="font-heading text-[14px] font-bold">{nombreEmpresa}</p>
-          </div>
-          <ul>
-            {raices.map((raiz) => (
-              <NodoCargo key={raiz.id} nodo={raiz} todosCargos={listaCargos} puedeGestionarEstructura={puedeGestionarEstructura} />
-            ))}
-          </ul>
-        </li>
-      </ul>
+      <OrganigramaZoom>
+        <ul className="org-tree">
+          <li>
+            <div className="org-node org-node-root">
+              <p className="font-heading text-[14px] font-bold">{nombreEmpresa}</p>
+            </div>
+            <ul>
+              {raices.map((raiz) => (
+                <NodoCargo key={raiz.id} nodo={raiz} todosCargos={listaCargos} puedeGestionarEstructura={puedeGestionarEstructura} />
+              ))}
+            </ul>
+          </li>
+        </ul>
+      </OrganigramaZoom>
     </div>
   );
 }
