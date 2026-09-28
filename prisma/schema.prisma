@@ -1,0 +1,540 @@
+// Prisma schema — OGP (Occupational Growth Platform)
+// Fase 1: cimientos administrativos (Empresas, Departamentos, Cargos,
+// Perfiles, Versiones). Talleres (RespuestaTaller) ya está modelado pero sin
+// UI todavía — lo usa la Fase 2 (captura de campo). El motor de
+// estandarización (Fase 3, IA) y el motor de diagnóstico cruzado (Fase 4) se
+// construyen sobre este mismo esquema, en particular sobre
+// FlujoPerfil.contraparteCargoId.
+//
+// Multi-tenant de dos roles (a diferencia del diseño inicial, donde Cuenta
+// ERA la empresa directamente):
+// - `Cuenta` es la cuenta del CONSULTOR — crea y administra varias Empresas.
+// - `Empresa` es el cliente del consultor, con exactamente un `Usuario` de
+//   acceso propio (rol 'empresa', Usuario.empresaId @unique) que solo puede
+//   VER su estructura, nunca modificarla (ver requerirGestionEmpresa en
+//   src/lib/auth.ts — el control real de "solo lectura" vive ahí, no en el
+//   esquema).
+//
+// Los campos tipo-enum se guardan como String y se validan en la capa de
+// aplicación (src/lib/validaciones.ts) — misma convención que los proyectos
+// hermanos, para no depender de migraciones al agregar/renombrar valores.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Cuenta {
+  id        String   @id @default(cuid())
+  nombre    String
+  estado    String   @default("activa") // 'activa' | 'suspendida'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios Usuario[]
+  empresas Empresa[]
+
+  @@map("cuentas")
+}
+
+model Usuario {
+  id               String   @id @default(cuid())
+  nombre           String
+  email            String   @unique
+  passwordHash     String
+  passwordTemporal Boolean  @default(false)
+  rol              String   @default("consultor") // 'consultor' | 'empresa' | 'super_admin'
+  activo           Boolean  @default(true)
+  // Set solo para 'consultor'/'super_admin'. Null para 'empresa'.
+  cuentaId         String?
+  // Set solo para 'empresa' — @unique garantiza un único usuario por empresa.
+  empresaId        String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cuenta  Cuenta?  @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([cuentaId])
+  @@map("usuarios")
+}
+
+// El cliente del consultor. Dueña de toda la estructura organizacional
+// (Departamentos/Cargos/Perfiles) y de su único Usuario de acceso.
+model Empresa {
+  id          String   @id @default(cuid())
+  cuentaId    String
+  nombre      String
+  estado      String   @default("activa") // 'activa' | 'suspendida'
+  // Cuánto puede hacer el Usuario de esta empresa (nunca el consultor, que
+  // siempre tiene control total) — ver requerirAccesoEmpresa en
+  // src/lib/auth.ts, que traduce este valor a permisos concretos:
+  // 'lectura'          → solo ver su estructura, cero mutaciones.
+  // 'gestion_perfiles' → además puede editar/publicar el contenido de
+  //                      perfiles ya existentes, pero no crear/eliminar
+  //                      departamentos o cargos (la estructura la define el
+  //                      consultor).
+  // 'control_total'    → puede crear/editar/eliminar departamentos, cargos
+  //                      y perfiles — igual que el consultor, pero acotado a
+  //                      esta empresa.
+  nivelAcceso String   @default("lectura")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cuenta                      Cuenta                           @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  usuario                     Usuario?
+  departamentos               Departamento[]
+  cargos                      Cargo[]
+  trabajadores                Trabajador[]
+  respuestasTaller            RespuestaTaller[]
+  invitacionesTaller          InvitacionTaller[]
+  funcionesComunes            FuncionComunEmpresa[]
+  competenciasComunes         CompetenciaComunEmpresa[]
+  responsabilidadesSstComunes ResponsabilidadSstComunEmpresa[]
+
+  @@unique([cuentaId, nombre])
+  @@index([cuentaId])
+  @@map("empresas")
+}
+
+// Funciones/competencias definidas UNA VEZ a nivel de empresa (fuera de
+// cualquier Taller o Cargo puntual) para no repetirlas cargo por cargo —
+// ej. "Cumplir el reglamento interno de trabajo" para todos los cargos, o
+// "Liderazgo" solo para los de nivel directivo. `alcance` es 'todos' o uno
+// de NIVELES_JERARQUICOS (src/lib/validaciones.ts). Se aplican al Perfil de
+// cada cargo que corresponda: automáticamente la primera vez que se crea su
+// Perfil, y bajo demanda después (botón "Aplicar" en el formulario) si el
+// cargo ya tenía Perfil o si esta lista cambió más tarde — nunca se
+// sobreescribe contenido ya guardado, mismo criterio que el resto de la app.
+model FuncionComunEmpresa {
+  id                String   @id @default(cuid())
+  empresaId         String
+  alcance           String // 'todos' | nivelJerarquico
+  descripcion       String
+  frecuencia        String? // 'cotidiana' | 'periodica' | 'ocasional'
+  criterioDesempeno String?
+  createdAt         DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
+  @@map("funciones_comunes_empresa")
+}
+
+model CompetenciaComunEmpresa {
+  id             String   @id @default(cuid())
+  empresaId      String
+  alcance        String // 'todos' | nivelJerarquico
+  nombre         String
+  nivelRequerido String // 'basico' | 'medio' | 'alto'
+  createdAt      DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
+  @@map("competencias_comunes_empresa")
+}
+
+// Responsabilidades de SG-SST comunes a varios cargos de la empresa (ej. las
+// obligaciones legales del trabajador — Decreto 1072 de 2015 / Resolución
+// 0312 de 2019) — alimentan el numeral 4 de la Ficha ("Responsabilidades
+// específicas en el SG-SST"), no el numeral 3 (funciones del cargo): son
+// obligaciones de seguridad y salud, no tareas propias del puesto.
+model ResponsabilidadSstComunEmpresa {
+  id          String   @id @default(cuid())
+  empresaId   String
+  alcance     String // 'todos' | nivelJerarquico
+  descripcion String
+  createdAt   DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
+  @@map("responsabilidades_sst_comunes_empresa")
+}
+
+model Departamento {
+  id          String   @id @default(cuid())
+  empresaId   String
+  nombre      String
+  descripcion String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  cargos  Cargo[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+  @@map("departamentos")
+}
+
+// Nodo del organigrama — datos estructurales (a qué departamento pertenece,
+// quién es su jefe inmediato). El contenido descriptivo del puesto vive en
+// Perfil, no acá, para poder tener cargos vacantes sin perfil todavía.
+model Cargo {
+  id              String   @id @default(cuid())
+  empresaId       String
+  departamentoId  String
+  nombre          String
+  codigo          String? // Código del cargo (ficha de descripción de cargo) — ej. "C-001".
+  nivelJerarquico String? // 'directivo' | 'coordinacion' | 'profesional' | 'tecnico' | 'operativo'
+  jefeInmediatoId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  empresa               Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  departamento          Departamento      @relation(fields: [departamentoId], references: [id], onDelete: Cascade)
+  jefeInmediato         Cargo?            @relation("LineaMando", fields: [jefeInmediatoId], references: [id], onDelete: SetNull)
+  subordinados          Cargo[]           @relation("LineaMando")
+  perfil                Perfil?
+  trabajadores          Trabajador[]
+  respuestasTaller      RespuestaTaller[]
+  flujosComoContraparte FlujoPerfil[]     @relation("ContraparteFlujo")
+
+  // Ya NO es único por [departamentoId, nombre] a propósito: dos cargos con
+  // el mismo nombre y nivel en la misma área pueden tener funciones propias
+  // distintas (ej. dos "Auxiliar de Nómina" con alcances diferentes) — cada
+  // uno es un Cargo independiente con su propio Perfil. Cuando dos personas
+  // hacen exactamente lo mismo, en cambio, comparten un único Cargo (varios
+  // Trabajador apuntan al mismo cargoId) — no hace falta duplicar nada ahí.
+  @@index([departamentoId])
+  @@index([empresaId])
+  @@index([jefeInmediatoId])
+  @@map("cargos")
+}
+
+// Contenido del perfil ocupacional — 1:1 con Cargo. Se crea la primera vez
+// que se guarda el formulario de perfil (un cargo puede existir sin perfil
+// todavía, ej. vacante recién creada).
+model Perfil {
+  id          String    @id @default(cuid())
+  cargoId     String    @unique
+  estado      String    @default("borrador") // 'borrador' | 'publicado'
+  publishedAt DateTime?
+
+  // Bloque 1 — Identificación, ubicación y propósito del cargo.
+  razonSer           String?
+  criticidadAusencia String?
+  // Datos adicionales de identificación, tal como los pide la Ficha de
+  // Descripción de Cargo (docs/plantillas/Ficha_Base_Descripcion_de_Cargo.docx).
+  numeroPuestos      Int? // No. de puestos con esta misma denominación.
+  sede               String? // Centro de trabajo / sede.
+  modalidadTrabajo   String? // 'presencial' | 'trabajo_casa' | 'remoto' | 'teletrabajo' | 'hibrido'
+  jornada            String? // 'ordinaria' | 'direccion_confianza_manejo'
+  claseRiesgoArl     String? // 'I' | 'II' | 'III' | 'IV' | 'V'
+  tipoVinculacion    String? // 'termino_indefinido' | 'termino_fijo' | 'obra_labor'
+
+  // Bloque 2 — Funciones operativas y actividades.
+  autonomiaDecision String?
+  funciones         FuncionPerfil[]
+  decisiones        DecisionAutonomiaPerfil[] // Autoridad y toma de decisiones (ficha num. 6/9.6).
+
+  // Responsabilidad por recursos (ficha num. 7/9.7) — 5 categorías fijas,
+  // cada una con su nivel (alta/media/baja) y una descripción breve.
+  recursoPersonasNivel               String?
+  recursoPersonasDescripcion         String?
+  recursoDineroNivel                 String?
+  recursoDineroDescripcion           String?
+  recursoEquiposNivel                String?
+  recursoEquiposDescripcion          String?
+  recursoInfoConfidencialNivel       String?
+  recursoInfoConfidencialDescripcion String?
+  recursoMaterialesNivel             String?
+  recursoMaterialesDescripcion       String?
+
+  // Bloque 3 — Flujos de trabajo e interdependencias.
+  participacionComites String?
+  flujos               FlujoPerfil[]
+
+  // Bloque 4 — Seguridad, salud en el trabajo y entorno (SST).
+  eppRequerido              String?
+  protocolosEmergencia      String?
+  riesgos                   RiesgoPerfil[]
+  // Responsabilidades de SST propias del cargo, además de las comunes a
+  // todo trabajador (ver FuncionComunEmpresa) — ficha num. 4/9.4.
+  responsabilidadesSst      ResponsabilidadSstPerfil[]
+  // Roles especiales de SST que ocupa quien está en este cargo — ficha
+  // num. 4/9.4 (checkboxes): 'responsable_sgsst' | 'copasst' | 'convivencia'
+  // | 'brigada' | 'alturas' | 'pesv'.
+  rolesSst                  String[]                   @default([])
+  // Evaluaciones médicas ocupacionales (ficha num. 12/9.12) — según el
+  // profesiograma de la empresa, no algo que se derive de otro dato.
+  evaluacionPreocupacional  String?
+  evaluacionPeriodica       String?
+  evaluacionPostIncapacidad String?
+  evaluacionEgreso          String?
+
+  // Responsabilidades en otros sistemas de gestión (ficha num. 5/9.5) — 5
+  // sistemas fijos, "No aplica" cuando no corresponda.
+  respSistemaCalidad              String?
+  respSistemaAmbiental            String?
+  respSistemaSeguridadVial        String?
+  respSistemaSeguridadInformacion String?
+  respSistemaSagrilaft            String?
+
+  // Bloque 5 — Inclusión laboral y ajustes razonables.
+  ajustes AjustePerfil[]
+
+  // Bloque 6 — Requisitos, herramientas y competencias.
+  competencias                     CompetenciaPerfil[]
+  // Requisitos del cargo (ficha num. 9/9.9) — 8 categorías fijas de la
+  // ficha, reemplazan al antiguo RequisitoPerfil (lista libre de 4 tipos)
+  // para calzar exactamente con el formato exigido.
+  requisitoEducacionFormal         String?
+  requisitoTarjetaProfesional      String?
+  requisitoFormacionComplementaria String?
+  requisitoCertificaciones         String?
+  requisitoExperienciaGeneral      String?
+  requisitoExperienciaEspecifica   String?
+  requisitoEquivalencias           String?
+  requisitoOtros                   String?
+  // Dotación y herramientas de trabajo (ficha num. 15/9.15).
+  dotacion                         String?
+  equiposHerramientas              String?
+
+  // Indicadores de desempeño (ficha num. 14/9.14).
+  indicadores IndicadorPerfil[]
+
+  // Evidencias — cómo se comprueba que alguien realmente cumple el perfil
+  // (adaptado de la Guía DAFP para Manuales de Funciones): de producto (un
+  // entregable concreto), de desempeño (observación directa) y de
+  // conocimiento (una prueba oral/escrita). Útil para selección/inducción,
+  // no solo para describir el cargo.
+  evidenciaProducto     String?
+  evidenciaDesempeno    String?
+  evidenciaConocimiento String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cargo     Cargo     @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  versiones Version[]
+
+  @@map("perfiles")
+}
+
+model DecisionAutonomiaPerfil {
+  id             String @id @default(cuid())
+  perfilId       String
+  descripcion    String // La decisión concreta que toma el cargo.
+  nivelAutonomia String // 'autonoma' | 'consulta_previa' | 'requiere_aprobacion'
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@index([perfilId])
+  @@map("decisiones_autonomia_perfil")
+}
+
+model ResponsabilidadSstPerfil {
+  id          String @id @default(cuid())
+  perfilId    String
+  orden       Int
+  descripcion String
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@index([perfilId])
+  @@map("responsabilidades_sst_perfil")
+}
+
+model IndicadorPerfil {
+  id         String  @id @default(cuid())
+  perfilId   String
+  nombre     String
+  formula    String?
+  meta       String?
+  frecuencia String? // texto libre, ej. "Mensual"
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@index([perfilId])
+  @@map("indicadores_perfil")
+}
+
+model FuncionPerfil {
+  id                String  @id @default(cuid())
+  perfilId          String
+  orden             Int
+  descripcion       String
+  frecuencia        String? // 'diaria' | 'semanal' | 'mensual' | 'eventual'
+  // Resultado medible que permite evaluar si la función se cumplió bien —
+  // ver Guía DAFP: "¿qué hay que hacer para cumplir con la función?".
+  criterioDesempeno String?
+  // % del tiempo laboral que ocupa esta función — la suma de todas las
+  // funciones de un mismo Perfil debería dar 100 (ficha num. 3/9.3).
+  porcentajeTiempo  Int?
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@index([perfilId])
+  @@map("funciones_perfil")
+}
+
+model FlujoPerfil {
+  id                 String  @id @default(cuid())
+  perfilId           String
+  tipo               String // 'insumo' | 'salida'
+  descripcion        String
+  contraparte        String? // texto libre (ej. "cliente externo", "proveedor")
+  contraparteCargoId String? // opcional: si la contraparte es otro cargo de la misma empresa
+
+  perfil           Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  contraparteCargo Cargo? @relation("ContraparteFlujo", fields: [contraparteCargoId], references: [id], onDelete: SetNull)
+
+  @@index([perfilId])
+  @@index([contraparteCargoId])
+  @@map("flujos_perfil")
+}
+
+model RiesgoPerfil {
+  id                  String  @id @default(cuid())
+  perfilId            String
+  // 'biologico' | 'fisico' | 'quimico' | 'psicosocial' | 'biomecanico' |
+  // 'seguridad' | 'fenomenos_naturales' — categorías GTC 45, tal como las
+  // pide la ficha de descripción de cargo (num. 11/9.11).
+  tipo                String
+  descripcion         String
+  nivel               String // 'bajo' | 'medio' | 'alto'
+  // Controles ya existentes para este riesgo puntual, y el EPP específico
+  // que aplica a él (distinto del EPP general de Perfil.eppRequerido).
+  controlesExistentes String?
+  eppRequerido        String?
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@index([perfilId])
+  @@map("riesgos_perfil")
+}
+
+model AjustePerfil {
+  id                 String @id @default(cuid())
+  perfilId           String
+  tipoBarrera        String // 'fisica' | 'sensorial' | 'comunicacion' | 'cognitiva'
+  descripcionBarrera String
+  apoyoSugerido      String
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@index([perfilId])
+  @@map("ajustes_perfil")
+}
+
+model CompetenciaPerfil {
+  id             String @id @default(cuid())
+  perfilId       String
+  nombre         String
+  tipo           String // 'organizacional' | 'comportamental' | 'tecnica'
+  // 'basico' | 'intermedio' | 'avanzado' | 'experto' — escala de 4 niveles
+  // de la ficha (num. 10/9.10), en vez de la anterior de 3.
+  nivelRequerido String
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@index([perfilId])
+  @@map("competencias_perfil")
+}
+
+// Historial auditable: cada guardado del Perfil crea una fila acá con un
+// snapshot completo (perfil + hijos) serializado — más simple y robusto que
+// versionar cada tabla hija por separado, y suficiente para "ver qué cambió
+// y cuándo" sin necesitar restaurar automáticamente en esta fase.
+model Version {
+  id           String   @id @default(cuid())
+  perfilId     String
+  numero       Int
+  snapshot     Json
+  autorId      String
+  autorNombre  String
+  motivoCambio String?
+  createdAt    DateTime @default(now())
+
+  perfil Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  @@unique([perfilId, numero])
+  @@index([perfilId])
+  @@map("versiones")
+}
+
+// Persona real que hoy ocupa un Cargo — separado de Cargo (el puesto en sí,
+// que puede estar vacante) para poder tener organigrama e historial de
+// perfiles aunque cambie quién lo ocupa. Se alimenta principalmente por
+// carga masiva (ver src/lib/importar-trabajadores.ts), que además puede
+// crear el Departamento/Cargo si todavía no existen.
+model Trabajador {
+  id           String    @id @default(cuid())
+  empresaId    String
+  cargoId      String
+  documento    String
+  nombres      String
+  email        String?
+  fechaIngreso DateTime?
+  estado       String    @default("activo") // 'activo' | 'inactivo'
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  cargo   Cargo   @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+
+  respuestasTaller   RespuestaTaller[]
+  invitacionesTaller InvitacionTaller[]
+
+  @@unique([empresaId, documento])
+  @@index([empresaId])
+  @@index([cargoId])
+  @@map("trabajadores")
+}
+
+// Captura cruda de talleres de campo, por bloque — sin UI todavía (Fase 2).
+// El motor de estandarización (Fase 3) la transforma en contenido de Perfil.
+// `trabajadorId` queda null cuando la respuesta la escribió un facilitador
+// (ver `facilitador`); queda con valor cuando el propio trabajador la envió
+// por autoservicio (ver InvitacionTaller) — ambos casos conviven.
+model RespuestaTaller {
+  id           String    @id @default(cuid())
+  empresaId    String
+  cargoId      String
+  trabajadorId String?
+  bloque       String // '1'..'6'
+  datos        Json
+  facilitador  String?
+  fechaTaller  DateTime?
+  createdAt    DateTime  @default(now())
+
+  empresa    Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  cargo      Cargo       @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  trabajador Trabajador? @relation(fields: [trabajadorId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId])
+  @@index([cargoId])
+  @@index([trabajadorId])
+  @@map("respuestas_taller")
+}
+
+// Enlace mágico de un solo destinatario para que un Trabajador diligencie su
+// propio Taller sin necesitar una cuenta en la plataforma — ver la ruta
+// pública /t/[token] (src/app/t/[token]/page.tsx), fuera de RUTAS_PUBLICAS
+// en proxy.ts a propósito. El token real solo vive en el link que recibe el
+// trabajador; acá solo se guarda su hash (mismo patrón que un reset de
+// contraseña) para que una fuga de la base de datos no filtre enlaces
+// utilizables.
+model InvitacionTaller {
+  id           String    @id @default(cuid())
+  empresaId    String
+  trabajadorId String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  completadaEn DateTime?
+  createdAt    DateTime  @default(now())
+
+  empresa    Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  trabajador Trabajador @relation(fields: [trabajadorId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
+  @@index([trabajadorId])
+  @@map("invitaciones_taller")
+}
