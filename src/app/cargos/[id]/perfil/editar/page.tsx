@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import { requerirGestionPerfil } from "@/lib/auth";
-import { obtenerCargoConPerfil, contarCargosConMismoNombre } from "@/lib/perfil-data";
+import {
+  obtenerCargoConPerfil,
+  contarCargosConMismoNombre,
+  mapearPerfilAValoresFormulario,
+  listarCargosParaCopiarPerfil,
+} from "@/lib/perfil-data";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { type PerfilDefaultValues, perfilVacio } from "@/lib/perfil-defaults";
@@ -43,88 +48,8 @@ export default async function EditarPerfilPage({ params }: { params: Promise<{ i
   // sigue disponible para agregarlas a mano si hace falta.
   const valoresIniciales: PerfilDefaultValues = perfil
     ? {
-        razonSer: perfil.razonSer ?? "",
-        criticidadAusencia: perfil.criticidadAusencia ?? "",
+        ...mapearPerfilAValoresFormulario(perfil),
         numeroPuestos: perfil.numeroPuestos != null ? String(perfil.numeroPuestos) : String(sugerenciaNumeroPuestos),
-        sede: perfil.sede ?? "",
-        modalidadTrabajo: perfil.modalidadTrabajo ?? "",
-        jornada: perfil.jornada ?? "",
-        claseRiesgoArl: perfil.claseRiesgoArl ?? "",
-        tipoVinculacion: perfil.tipoVinculacion ?? "",
-        autonomiaDecision: perfil.autonomiaDecision ?? "",
-        recursoPersonasNivel: perfil.recursoPersonasNivel ?? "",
-        recursoPersonasDescripcion: perfil.recursoPersonasDescripcion ?? "",
-        recursoDineroNivel: perfil.recursoDineroNivel ?? "",
-        recursoDineroDescripcion: perfil.recursoDineroDescripcion ?? "",
-        recursoEquiposNivel: perfil.recursoEquiposNivel ?? "",
-        recursoEquiposDescripcion: perfil.recursoEquiposDescripcion ?? "",
-        recursoInfoConfidencialNivel: perfil.recursoInfoConfidencialNivel ?? "",
-        recursoInfoConfidencialDescripcion: perfil.recursoInfoConfidencialDescripcion ?? "",
-        recursoMaterialesNivel: perfil.recursoMaterialesNivel ?? "",
-        recursoMaterialesDescripcion: perfil.recursoMaterialesDescripcion ?? "",
-        participacionComites: perfil.participacionComites ?? "",
-        eppRequerido: perfil.eppRequerido ?? "",
-        protocolosEmergencia: perfil.protocolosEmergencia ?? "",
-        rolesSst: perfil.rolesSst,
-        evaluacionPreocupacional: perfil.evaluacionPreocupacional ?? "",
-        evaluacionPeriodica: perfil.evaluacionPeriodica ?? "",
-        evaluacionPostIncapacidad: perfil.evaluacionPostIncapacidad ?? "",
-        evaluacionEgreso: perfil.evaluacionEgreso ?? "",
-        respSistemaCalidad: perfil.respSistemaCalidad ?? "",
-        respSistemaAmbiental: perfil.respSistemaAmbiental ?? "",
-        respSistemaSeguridadVial: perfil.respSistemaSeguridadVial ?? "",
-        respSistemaSeguridadInformacion: perfil.respSistemaSeguridadInformacion ?? "",
-        respSistemaSagrilaft: perfil.respSistemaSagrilaft ?? "",
-        requisitoEducacionFormal: perfil.requisitoEducacionFormal ?? "",
-        requisitoTarjetaProfesional: perfil.requisitoTarjetaProfesional ?? "",
-        requisitoFormacionComplementaria: perfil.requisitoFormacionComplementaria ?? "",
-        requisitoCertificaciones: perfil.requisitoCertificaciones ?? "",
-        requisitoExperienciaGeneral: perfil.requisitoExperienciaGeneral ?? "",
-        requisitoExperienciaEspecifica: perfil.requisitoExperienciaEspecifica ?? "",
-        requisitoEquivalencias: perfil.requisitoEquivalencias ?? "",
-        requisitoOtros: perfil.requisitoOtros ?? "",
-        dotacion: perfil.dotacion ?? "",
-        equiposHerramientas: perfil.equiposHerramientas ?? "",
-        evidenciaProducto: perfil.evidenciaProducto ?? "",
-        evidenciaDesempeno: perfil.evidenciaDesempeno ?? "",
-        evidenciaConocimiento: perfil.evidenciaConocimiento ?? "",
-        funciones: perfil.funciones.map((f) => ({
-          descripcion: f.descripcion,
-          frecuencia: f.frecuencia ?? "diaria",
-          criterioDesempeno: f.criterioDesempeno ?? "",
-          porcentajeTiempo: f.porcentajeTiempo != null ? String(f.porcentajeTiempo) : "",
-        })),
-        flujos: perfil.flujos.map((f) => ({
-          tipo: f.tipo,
-          descripcion: f.descripcion,
-          contraparte: f.contraparte ?? "",
-          contraparteCargoId: f.contraparteCargoId ?? "",
-        })),
-        riesgos: perfil.riesgos.map((r) => ({
-          tipo: r.tipo,
-          descripcion: r.descripcion,
-          nivel: r.nivel,
-          controlesExistentes: r.controlesExistentes ?? "",
-          eppRequerido: r.eppRequerido ?? "",
-        })),
-        ajustes: perfil.ajustes.map((a) => ({
-          tipoBarrera: a.tipoBarrera,
-          descripcionBarrera: a.descripcionBarrera,
-          apoyoSugerido: a.apoyoSugerido,
-        })),
-        competencias: perfil.competencias.map((c) => ({
-          nombre: c.nombre,
-          tipo: c.tipo,
-          nivelRequerido: c.nivelRequerido,
-        })),
-        decisiones: perfil.decisiones.map((d) => ({ descripcion: d.descripcion, nivelAutonomia: d.nivelAutonomia })),
-        responsabilidadesSst: perfil.responsabilidadesSst.map((r) => ({ descripcion: r.descripcion })),
-        indicadores: perfil.indicadores.map((i) => ({
-          nombre: i.nombre,
-          formula: i.formula ?? "",
-          meta: i.meta ?? "",
-          frecuencia: i.frecuencia ?? "",
-        })),
       }
     : {
         ...perfilVacio,
@@ -144,6 +69,7 @@ export default async function EditarPerfilPage({ params }: { params: Promise<{ i
       };
 
   const respuestasTaller = await obtenerUltimoTallerPorBloque(id);
+  const cargosParaCopiar = await listarCargosParaCopiarPerfil(cargoBasico.empresaId, cargo.id, cargo.nombre);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -160,6 +86,7 @@ export default async function EditarPerfilPage({ params }: { params: Promise<{ i
         <PerfilFormConIA
           cargoId={cargo.id}
           tieneTaller={Object.keys(respuestasTaller).length > 0}
+          cargosParaCopiar={cargosParaCopiar}
           action={guardarPerfilAction.bind(null, cargo.id)}
           otrosCargos={otrosCargos}
           valoresIniciales={valoresIniciales}

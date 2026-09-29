@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { requerirGestionPerfil } from "@/lib/auth";
 import { perfilSchema, ROLES_SST } from "@/lib/validaciones";
 import { textoOpcional, listasParalelas } from "@/lib/form-utils";
-import { obtenerCargoConPerfil } from "@/lib/perfil-data";
+import { obtenerCargoConPerfil, mapearPerfilAValoresFormulario, combinarValoresPerfil } from "@/lib/perfil-data";
+import { perfilVacio } from "@/lib/perfil-defaults";
 import { obtenerUltimoTallerPorBloque } from "@/lib/taller-data";
 import { generarBorradorPerfilConIA } from "@/lib/ia-perfil";
 import { camposFaltantesParaPublicar } from "@/lib/perfil-publicacion";
@@ -411,6 +412,35 @@ export async function generarBorradorPerfilAction(cargoId: string): Promise<Borr
   };
 
   return { borrador };
+}
+
+export type CopiarPerfilState = { error?: string; borrador?: PerfilDefaultValues };
+
+/**
+ * Copia el contenido de OTRO cargo de la misma empresa que ya tiene Perfil —
+ * para cargos muy parecidos (mismo puesto en otra área, por ejemplo). Igual
+ * que el borrador con IA: solo llena los campos que hoy estén vacíos en el
+ * perfil actual, nunca sobreescribe algo que el consultor ya escribió. No
+ * persiste nada — el consultor revisa el formulario prellenado y decide si
+ * guarda.
+ */
+export async function copiarPerfilAction(cargoDestinoId: string, cargoOrigenId: string): Promise<CopiarPerfilState> {
+  const cargoDestino = await prisma.cargo.findUnique({ where: { id: cargoDestinoId } });
+  if (!cargoDestino) return { error: "Cargo no encontrado" };
+  const { empresa } = await requerirGestionPerfil(cargoDestino.empresaId);
+
+  if (cargoOrigenId === cargoDestinoId) return { error: "Elige un cargo distinto para copiar." };
+
+  const cargoOrigen = await obtenerCargoConPerfil(cargoOrigenId, empresa.id);
+  if (!cargoOrigen?.perfil) {
+    return { error: "El cargo seleccionado no tiene un perfil para copiar, o no pertenece a esta empresa." };
+  }
+
+  const cargoActual = await obtenerCargoConPerfil(cargoDestinoId, empresa.id);
+  const valoresActuales = cargoActual?.perfil ? mapearPerfilAValoresFormulario(cargoActual.perfil) : perfilVacio;
+  const valoresOrigen = mapearPerfilAValoresFormulario(cargoOrigen.perfil);
+
+  return { borrador: combinarValoresPerfil(valoresActuales, valoresOrigen) };
 }
 
 export type PublicarPerfilState = { error?: string; camposFaltantes?: string[] };
