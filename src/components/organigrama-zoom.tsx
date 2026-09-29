@@ -1,13 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 1.5;
 const ZOOM_PASO = 0.1;
 
+// Área imprimible en px CSS (96px/pulgada) para el @page de globals.css:
+// "landscape" + márgenes de 12mm sobre A4 (297x210mm) => 273x186mm útiles.
+const PX_POR_MM = 96 / 25.4;
+const ANCHO_IMPRIMIBLE_PX = (297 - 24) * PX_POR_MM;
+const ALTO_IMPRIMIBLE_PX = (210 - 24) * PX_POR_MM;
+
 export function OrganigramaZoom({ children }: { children: React.ReactNode }) {
   const [zoom, setZoom] = useState(1);
+  const contenidoRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // El tamaño natural del árbol (scrollWidth/Height) no lo afecta el zoom
+    // en pantalla — un transform:scale no cambia el tamaño de layout del
+    // elemento, solo su pintado — así que sirve tal cual para calcular cuánto
+    // hay que encoger el organigrama para que quepa en una sola hoja impresa.
+    function ajustarEscalaDeImpresion() {
+      const el = contenidoRef.current;
+      if (!el) return;
+      const escala = Math.min(1, ANCHO_IMPRIMIBLE_PX / el.scrollWidth, ALTO_IMPRIMIBLE_PX / el.scrollHeight);
+      el.style.setProperty("--print-zoom", String(escala));
+    }
+    window.addEventListener("beforeprint", ajustarEscalaDeImpresion);
+    return () => window.removeEventListener("beforeprint", ajustarEscalaDeImpresion);
+  }, []);
 
   return (
     <div>
@@ -39,8 +61,12 @@ export function OrganigramaZoom({ children }: { children: React.ReactNode }) {
           </button>
         )}
       </div>
-      <div className="overflow-auto">
-        <div className="org-zoom-inner" style={{ transform: `scale(${zoom})`, transformOrigin: "top left", width: "fit-content" }}>
+      <div className="org-zoom-scroll overflow-auto">
+        <div
+          ref={contenidoRef}
+          className="org-zoom-inner"
+          style={{ transform: `scale(${zoom})`, transformOrigin: "top left", width: "fit-content" }}
+        >
           {children}
         </div>
       </div>

@@ -350,9 +350,16 @@ h4 {
     transform: none !important;
     break-inside: avoid;
   }
-  /* El zoom del organigrama (en pantalla) no debe afectar lo impreso —
-     siempre se imprime a escala real, sin importar el % elegido. */
+  /* El zoom del organigrama (en pantalla) no debe afectar lo impreso — se
+     ignora el % elegido y en su lugar se aplica --print-zoom, calculado en
+     organigrama-zoom.tsx para que el árbol quepa completo en una sola hoja.
+     El contenedor de scroll deja de recortar/mostrar su barra: a esta escala
+     ya no hace falta. */
+  .org-zoom-scroll {
+    overflow: visible !important;
+  }
   .org-zoom-inner {
-    transform: none !important;
+    transform: scale(var(--print-zoom, 1)) !important;
+    transform-origin: top left !important;
   }
 }
