@@ -6,11 +6,17 @@ import { prisma } from "@/lib/prisma";
 import { requerirGestionPerfil } from "@/lib/auth";
 import { perfilSchema, ROLES_SST } from "@/lib/validaciones";
 import { textoOpcional, listasParalelas } from "@/lib/form-utils";
-import { obtenerCargoConPerfil, mapearPerfilAValoresFormulario, combinarValoresPerfil } from "@/lib/perfil-data";
+import {
+  obtenerCargoConPerfil,
+  mapearPerfilAValoresFormulario,
+  combinarValoresPerfil,
+  listarCargosConFuncionesParaEmpresa,
+} from "@/lib/perfil-data";
 import { perfilVacio } from "@/lib/perfil-defaults";
 import { obtenerUltimoTallerPorBloque } from "@/lib/taller-data";
 import { generarBorradorPerfilConIA } from "@/lib/ia-perfil";
 import { camposFaltantesParaPublicar } from "@/lib/perfil-publicacion";
+import { obtenerSolapamientosDeCargo, type SolapamientoCargo } from "@/lib/solapamiento-funciones";
 import type { PerfilDefaultValues } from "@/lib/perfil-defaults";
 
 export type PerfilState = { error?: string };
@@ -443,9 +449,17 @@ export async function copiarPerfilAction(cargoDestinoId: string, cargoOrigenId: 
   return { borrador: combinarValoresPerfil(valoresActuales, valoresOrigen) };
 }
 
-export type PublicarPerfilState = { error?: string; camposFaltantes?: string[] };
+export type PublicarPerfilState = {
+  error?: string;
+  camposFaltantes?: string[];
+  solapamientos?: SolapamientoCargo[];
+};
 
-export async function publicarPerfilAction(cargoId: string, _prevState: PublicarPerfilState): Promise<PublicarPerfilState> {
+export async function publicarPerfilAction(
+  cargoId: string,
+  _prevState: PublicarPerfilState,
+  formData?: FormData
+): Promise<PublicarPerfilState> {
   const cargoBasico = await prisma.cargo.findUnique({ where: { id: cargoId } });
   if (!cargoBasico) redirect("/empresas");
   await requerirGestionPerfil(cargoBasico.empresaId);
@@ -459,6 +473,22 @@ export async function publicarPerfilAction(cargoId: string, _prevState: Publicar
       error: "Faltan datos importantes para publicar este perfil — revisa y completa lo siguiente:",
       camposFaltantes,
     };
+  }
+
+  // Aviso no bloqueante: si hay funciones muy parecidas a las de otro cargo,
+  // se muestra una vez y el consultor decide si publica de todas formas
+  // (formData trae "confirmar=1" en ese segundo clic) — nunca impide
+  // publicar, solo obliga a que el aviso se vea justo antes de hacerlo.
+  const yaConfirmado = formData?.get("confirmar") === "1";
+  if (!yaConfirmado) {
+    const otrosCargos = await listarCargosConFuncionesParaEmpresa(cargoBasico.empresaId);
+    const solapamientos = obtenerSolapamientosDeCargo(
+      { id: cargo.id, nombre: cargo.nombre, departamento: cargo.departamento.nombre, funciones: cargo.perfil.funciones },
+      otrosCargos
+    );
+    if (solapamientos.length > 0) {
+      return { solapamientos };
+    }
   }
 
   await prisma.perfil.update({

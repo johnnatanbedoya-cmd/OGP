@@ -229,6 +229,27 @@ export async function contarCargosConMismoNombre(empresaId: string, departamento
   return prisma.cargo.count({ where: { empresaId, departamentoId, nombre } });
 }
 
+/** Cargos de la empresa con sus funciones esenciales — insumo para detectar
+ * solapamiento (ver solapamiento-funciones.ts). Solo trae la descripción de
+ * cada función, no el resto del Perfil. */
+export async function listarCargosConFuncionesParaEmpresa(empresaId: string) {
+  const cargos = await prisma.cargo.findMany({
+    where: { empresaId },
+    select: {
+      id: true,
+      nombre: true,
+      departamento: { select: { nombre: true } },
+      perfil: { select: { funciones: { select: { descripcion: true } } } },
+    },
+  });
+  return cargos.map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    departamento: c.departamento.nombre,
+    funciones: c.perfil?.funciones ?? [],
+  }));
+}
+
 export async function listarCargosParaSelector(empresaId: string) {
   return prisma.cargo.findMany({
     where: { empresaId },

@@ -8,6 +8,23 @@ const initialState: PublicarPerfilState = {};
 export function PublicarPerfilButton({ cargoId }: { cargoId: string }) {
   const [state, formAction, pending] = useActionState(publicarPerfilAction.bind(null, cargoId), initialState);
 
+  if (state.solapamientos && state.solapamientos.length > 0) {
+    return (
+      <div className="w-full max-w-md rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-3 text-[12.5px]">
+        <p className="mb-2 font-medium text-amber-900">
+          Este perfil se parece mucho a {state.solapamientos.length === 1 ? "otro cargo" : "otros cargos"}:{" "}
+          {state.solapamientos.map((s) => s.cargoNombre).join(", ")} — revisa el aviso más abajo antes de publicar.
+        </p>
+        <form action={formAction}>
+          <input type="hidden" name="confirmar" value="1" />
+          <button type="submit" disabled={pending} className="btn-secondary px-3 py-1.5 text-[12.5px]">
+            {pending ? "Publicando…" : "Publicar de todas formas"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div>
       <form action={formAction}>

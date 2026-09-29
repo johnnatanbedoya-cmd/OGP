@@ -3,6 +3,8 @@ import { requerirAccesoEmpresa } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { obtenerDatosDashboardEmpresa, type ConteoPorClave } from "@/lib/dashboard-empresa-data";
+import { listarCargosConFuncionesParaEmpresa } from "@/lib/perfil-data";
+import { obtenerSolapamientosDeEmpresa } from "@/lib/solapamiento-funciones";
 import {
   ETIQUETAS_NIVEL_ACCESO,
   ETIQUETAS_NIVEL_JERARQUICO,
@@ -26,6 +28,8 @@ export default async function DashboardEmpresaPage({ params }: { params: Promise
 
   const totalCargos = datos.cargos || 1; // evita división por cero en los porcentajes
   const porcentajePublicados = Math.round((datos.perfilesPublicados / totalCargos) * 100);
+
+  const solapamientos = obtenerSolapamientosDeEmpresa(await listarCargosConFuncionesParaEmpresa(id));
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -70,6 +74,37 @@ export default async function DashboardEmpresaPage({ params }: { params: Promise
           <p className="mb-8 text-[13.5px] text-[var(--color-texto-suave)]">
             Antigüedad promedio del equipo: <strong className="text-gray-900">{datos.antiguedadPromedioAnios} años</strong>
           </p>
+        )}
+
+        {solapamientos.length > 0 && (
+          <div className="card mb-8 border-[var(--color-acento)] bg-amber-50/60 p-5">
+            <h2 className="mb-1 font-heading text-[15px] font-bold text-gray-900">
+              Posible solapamiento de funciones ({solapamientos.length})
+            </h2>
+            <p className="mb-4 text-[13px] text-[var(--color-texto-suave)]">
+              Estos cargos describen funciones muy parecidas entre sí — puede ser una oportunidad para rediseñar la
+              estructura (fusionarlos o delimitar mejor sus responsabilidades). Entra a cada cargo para ver el
+              detalle.
+            </p>
+            <div className="flex flex-col gap-2">
+              {solapamientos.map((s) => (
+                <div key={`${s.cargoA.id}-${s.cargoB.id}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-white px-3.5 py-2.5 text-[13px]">
+                  <Link href={`/cargos/${s.cargoA.id}`} className="font-semibold text-gray-900 hover:underline">
+                    {s.cargoA.nombre}
+                  </Link>
+                  <span className="text-[var(--color-texto-suave)]">({s.cargoA.departamento})</span>
+                  <span className="text-[var(--color-texto-suave)]">↔</span>
+                  <Link href={`/cargos/${s.cargoB.id}`} className="font-semibold text-gray-900 hover:underline">
+                    {s.cargoB.nombre}
+                  </Link>
+                  <span className="text-[var(--color-texto-suave)]">({s.cargoB.departamento})</span>
+                  <span className="ml-auto font-mono text-[12px] text-[var(--color-acento)]">
+                    {Math.round(s.funcionesParecidas[0].similitud * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Distribuciones */}

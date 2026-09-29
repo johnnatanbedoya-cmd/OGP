@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirAccesoEmpresa } from "@/lib/auth";
-import { obtenerCargoConPerfil } from "@/lib/perfil-data";
+import { obtenerCargoConPerfil, listarCargosConFuncionesParaEmpresa } from "@/lib/perfil-data";
+import { obtenerSolapamientosDeCargo } from "@/lib/solapamiento-funciones";
 import { AppHeader } from "@/components/app-header";
 import { EliminarCargoButton } from "@/components/eliminar-cargo-button";
 import { PublicarPerfilButton } from "@/components/publicar-perfil-button";
@@ -43,6 +44,14 @@ export default async function CargoPage({ params }: { params: Promise<{ id: stri
 
   const perfil = cargo.perfil;
   const contexto = session.rol === "empresa" ? ETIQUETAS_NIVEL_ACCESO[empresa.nivelAcceso] : undefined;
+
+  const solapamientos =
+    perfil && perfil.funciones.length > 0
+      ? obtenerSolapamientosDeCargo(
+          { id: cargo.id, nombre: cargo.nombre, departamento: cargo.departamento.nombre, funciones: perfil.funciones },
+          await listarCargosConFuncionesParaEmpresa(cargoBasico.empresaId)
+        )
+      : [];
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -138,6 +147,8 @@ export default async function CargoPage({ params }: { params: Promise<{ id: stri
                 </div>
               )}
             </div>
+
+            {solapamientos.length > 0 && <SolapamientoAviso solapamientos={solapamientos} />}
 
             <Bloque numero={1} titulo="Identificación y propósito">
               <Dato etiqueta="Razón de ser del cargo" valor={perfil.razonSer} />
@@ -390,4 +401,43 @@ function RecursoDato({ titulo, nivel, descripcion }: { titulo: string; nivel: st
 
 function SinDatos() {
   return <p className="text-[13.5px] text-[var(--color-texto-suave)]">Sin información registrada.</p>;
+}
+
+function SolapamientoAviso({ solapamientos }: { solapamientos: ReturnType<typeof obtenerSolapamientosDeCargo> }) {
+  return (
+    <div className="card border-[var(--color-acento)] bg-amber-50/60 p-5">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-acento)] text-[12px] font-bold text-white">
+          !
+        </span>
+        <h2 className="font-heading text-[15px] font-bold text-gray-900">Posible solapamiento de funciones</h2>
+      </div>
+      <p className="mb-3 pl-[34px] text-[13px] text-[var(--color-texto-suave)]">
+        Este cargo comparte funciones muy parecidas con {solapamientos.length === 1 ? "otro cargo" : "estos cargos"} de la
+        empresa — vale la pena revisar si conviene delimitar mejor sus responsabilidades o si en realidad deberían
+        fusionarse.
+      </p>
+      <div className="flex flex-col gap-3 pl-[34px]">
+        {solapamientos.map((s) => (
+          <div key={s.cargoId} className="rounded-lg border border-amber-200 bg-white p-3.5">
+            <p className="mb-1.5 text-[13.5px] font-semibold text-gray-900">
+              {s.cargoNombre}{" "}
+              <span className="font-normal text-[var(--color-texto-suave)]">
+                ({s.departamento} · {Math.round(s.funcionesParecidas[0].similitud * 100)}% de coincidencia)
+              </span>
+            </p>
+            <ul className="space-y-1.5 text-[12.5px] text-gray-700">
+              {s.funcionesParecidas.slice(0, 3).map((f, i) => (
+                <li key={i}>
+                  <span className="text-[var(--color-texto-suave)]">Esta función:</span> {f.descripcionA}
+                  <br />
+                  <span className="text-[var(--color-texto-suave)]">se parece a:</span> {f.descripcionB}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
