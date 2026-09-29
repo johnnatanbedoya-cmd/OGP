@@ -5,6 +5,7 @@ import {
   contarCargosConMismoNombre,
   mapearPerfilAValoresFormulario,
   listarCargosParaCopiarPerfil,
+  obtenerCatalogoCompetenciasEmpresa,
 } from "@/lib/perfil-data";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
@@ -70,6 +71,7 @@ export default async function EditarPerfilPage({ params }: { params: Promise<{ i
 
   const respuestasTaller = await obtenerUltimoTallerPorBloque(id);
   const cargosParaCopiar = await listarCargosParaCopiarPerfil(cargoBasico.empresaId, cargo.id, cargo.nombre);
+  const catalogoCompetencias = await obtenerCatalogoCompetenciasEmpresa(cargoBasico.empresaId);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -97,6 +99,7 @@ export default async function EditarPerfilPage({ params }: { params: Promise<{ i
             criterioDesempeno: f.criterioDesempeno ?? "",
           }))}
           competenciasComunes={competenciasComunes.map((c) => ({ nombre: c.nombre, nivelRequerido: c.nivelRequerido }))}
+          catalogoCompetencias={catalogoCompetencias}
           responsabilidadesSstComunes={responsabilidadesSstComunes.map((r) => ({ descripcion: r.descripcion }))}
           sugerenciaNumeroPuestos={sugerenciaNumeroPuestos}
         />

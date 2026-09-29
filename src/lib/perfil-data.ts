@@ -250,6 +250,32 @@ export async function listarCargosConFuncionesParaEmpresa(empresaId: string) {
   }));
 }
 
+/**
+ * Catálogo de nombres de competencia ya usados en la empresa — de los
+ * perfiles existentes y de las competencias comunes definidas — para
+ * sugerirlos como autocompletado al escribir una nueva competencia y evitar
+ * que dos cargos terminen con el mismo concepto escrito de forma distinta
+ * (ej. "Trabajo en equipo" vs "Trabajo colaborativo").
+ */
+export async function obtenerCatalogoCompetenciasEmpresa(empresaId: string): Promise<string[]> {
+  const [deLosPerfiles, comunes] = await Promise.all([
+    prisma.competenciaPerfil.findMany({
+      where: { perfil: { cargo: { empresaId } } },
+      select: { nombre: true },
+    }),
+    prisma.competenciaComunEmpresa.findMany({ where: { empresaId }, select: { nombre: true } }),
+  ]);
+
+  const vistos = new Map<string, string>(); // clave normalizada -> primera grafía vista
+  for (const { nombre } of [...deLosPerfiles, ...comunes]) {
+    const limpio = nombre.trim();
+    if (!limpio) continue;
+    const clave = limpio.toLowerCase();
+    if (!vistos.has(clave)) vistos.set(clave, limpio);
+  }
+  return Array.from(vistos.values()).sort((a, b) => a.localeCompare(b, "es"));
+}
+
 export async function listarCargosParaSelector(empresaId: string) {
   return prisma.cargo.findMany({
     where: { empresaId },

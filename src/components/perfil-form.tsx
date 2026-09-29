@@ -140,6 +140,7 @@ export function PerfilForm({
   funcionesComunes = [],
   competenciasComunes = [],
   responsabilidadesSstComunes = [],
+  catalogoCompetencias = [],
   sugerenciaNumeroPuestos,
 }: {
   action: FormAction;
@@ -149,10 +150,12 @@ export function PerfilForm({
   funcionesComunes?: { descripcion: string; frecuencia: string; criterioDesempeno: string }[];
   competenciasComunes?: { nombre: string; nivelRequerido: string }[];
   responsabilidadesSstComunes?: { descripcion: string }[];
+  catalogoCompetencias?: string[];
   sugerenciaNumeroPuestos?: number;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const numeroPuestosRef = useRef<HTMLInputElement>(null);
+  const idListaCompetencias = useId();
 
   const funciones = useFilas(valoresIniciales.funciones);
   const flujos = useFilas(valoresIniciales.flujos);
@@ -630,6 +633,8 @@ export function PerfilForm({
                 defaultValue={fila.valor.nombre}
                 className="input-field"
                 placeholder="Ej. Trabajo en equipo"
+                list={idListaCompetencias}
+                autoComplete="off"
               />
               <select name="competenciaTipo" defaultValue={fila.valor.tipo || "organizacional"} className="input-field sm:w-44">
                 {TIPOS_COMPETENCIA.map((v) => (
@@ -686,6 +691,13 @@ export function PerfilForm({
             </button>
           )}
         </div>
+        {catalogoCompetencias.length > 0 && (
+          <datalist id={idListaCompetencias}>
+            {catalogoCompetencias.map((nombre) => (
+              <option key={nombre} value={nombre} />
+            ))}
+          </datalist>
+        )}
       </Seccion>
 
       <Seccion numero={12} titulo="Indicadores de desempeño">
